@@ -10,13 +10,16 @@ const fs = require('fs');
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const TOKEN = process.env.TOKEN;
 
-// Charger config
+if (!TOKEN) {
+  console.error("❌ TOKEN manquant. Ajoute le token dans les variables Railway (KEY: TOKEN).");
+  process.exit(1);
+}
+
 let config = {};
 if (fs.existsSync('./config.json')) {
   config = JSON.parse(fs.readFileSync('./config.json'));
 }
 
-// Ready
 client.once('ready', async () => {
   console.log(`Connecté en tant que ${client.user.tag}`);
 
@@ -48,11 +51,9 @@ client.once('ready', async () => {
   await client.application.commands.set(commands);
 });
 
-// Interaction
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  // SETUP
   if (interaction.commandName === 'confess-setup') {
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return interaction.reply({ content: '❌ Admin uniquement', ephemeral: true });
@@ -74,7 +75,6 @@ client.on('interactionCreate', async interaction => {
     });
   }
 
-  // CONFESS
   if (interaction.commandName === 'confess') {
     const serverConfig = config[interaction.guild.id];
     if (!serverConfig) {
@@ -101,13 +101,23 @@ client.on('interactionCreate', async interaction => {
       .setColor(0xED4245)
       .setTimestamp();
 
-    await interaction.client.channels.fetch(serverConfig.confession)
-      .then(c => c.send({ embeds: [confessEmbed] }));
-
-    await interaction.client.channels.fetch(serverConfig.logs)
-      .then(c => c.send({ embeds: [logEmbed] }));
-
+    // Réponse rapide pour éviter "application ne répond plus"
     await interaction.reply({ content: '✅ Confession envoyée anonymement', ephemeral: true });
+
+    // Envoi confession + logs après
+    try {
+      const confessionChannel = await interaction.client.channels.fetch(serverConfig.confession);
+      await confessionChannel.send({ embeds: [confessEmbed] });
+    } catch (err) {
+      console.error("Erreur envoi confession:", err);
+    }
+
+    try {
+      const logsChannel = await interaction.client.channels.fetch(serverConfig.logs);
+      await logsChannel.send({ embeds: [logEmbed] });
+    } catch (err) {
+      console.error("Erreur envoi logs:", err);
+    }
   }
 });
 
