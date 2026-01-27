@@ -1,10 +1,12 @@
 {
-  "1465010510264274985": {
-    "confession": "1465010511828619328",
-    "logs": "1465371634062852220"
+  "name": "confession-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
   },
-  "1420155460362702900": {
-    "confession": "1420161381248012538",
-    "logs": "1420161385345585254"
+  "dependencies": {
+    "discord.js": "^14.18.0"
   }
 }
