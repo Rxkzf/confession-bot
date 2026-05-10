@@ -5,13 +5,14 @@ const {
   EmbedBuilder,
   PermissionsBitField
 } = require('discord.js');
+
 const fs = require('fs');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const TOKEN = process.env.TOKEN;
 
 if (!TOKEN) {
-  console.error("❌ TOKEN manquant. Ajoute le token dans les variables Railway (KEY: TOKEN).");
+  console.error("❌ TOKEN manquant.");
   process.exit(1);
 }
 
@@ -27,20 +28,29 @@ client.once('ready', async () => {
     new SlashCommandBuilder()
       .setName('confess')
       .setDescription('Envoyer une confession anonyme')
+
       .addStringOption(o =>
         o.setName('message')
           .setDescription('Ta confession')
           .setRequired(true)
+      )
+
+      .addAttachmentOption(o =>
+        o.setName('image')
+          .setDescription('Image à joindre')
+          .setRequired(false)
       ),
 
     new SlashCommandBuilder()
       .setName('confess-setup')
       .setDescription('Configurer les salons de confession')
+
       .addChannelOption(o =>
         o.setName('confession')
           .setDescription('Salon des confessions')
           .setRequired(true)
       )
+
       .addChannelOption(o =>
         o.setName('logs')
           .setDescription('Salon des logs staff')
@@ -54,9 +64,14 @@ client.once('ready', async () => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
+  // SETUP
   if (interaction.commandName === 'confess-setup') {
+
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      return interaction.reply({ content: '❌ Admin uniquement', ephemeral: true });
+      return interaction.reply({
+        content: '❌ Admin uniquement',
+        ephemeral: true
+      });
     }
 
     const confession = interaction.options.getChannel('confession');
@@ -70,21 +85,26 @@ client.on('interactionCreate', async interaction => {
     fs.writeFileSync('./config.json', JSON.stringify(config, null, 2));
 
     return interaction.reply({
-      content: '✅ Configuration enregistrée pour ce serveur',
+      content: '✅ Configuration enregistrée',
       ephemeral: true
     });
   }
 
   if (interaction.commandName === 'confess') {
+
     const serverConfig = config[interaction.guild.id];
+
     if (!serverConfig) {
       return interaction.reply({
-        content: '⚠️ Le bot n’est pas configuré. Utilise `/confess-setup`.',
+        content: '⚠️ Le bot n’est pas configuré.',
         ephemeral: true
       });
     }
 
     const message = interaction.options.getString('message');
+
+    // RÉCUP IMAGE
+    const image = interaction.options.getAttachment('image');
 
     const confessEmbed = new EmbedBuilder()
       .setTitle('💭 Confession Anonyme')
@@ -92,31 +112,60 @@ client.on('interactionCreate', async interaction => {
       .setColor(0x5865F2)
       .setTimestamp();
 
+    if (image) {
+      confessEmbed.setImage(image.url);
+    }
+
     const logEmbed = new EmbedBuilder()
       .setTitle('📜 Log Confession')
       .addFields(
-        { name: 'Auteur', value: `${interaction.user.tag} (${interaction.user.id})` },
-        { name: 'Message', value: message }
+        {
+          name: 'Auteur',
+          value: `${interaction.user.tag} (${interaction.user.id})`
+        },
+        {
+          name: 'Message',
+          value: message
+        }
       )
       .setColor(0xED4245)
       .setTimestamp();
 
-    // Réponse rapide pour éviter "application ne répond plus"
-    await interaction.reply({ content: '✅ Confession envoyée anonymement', ephemeral: true });
+    if (image) {
+      logEmbed.addFields({
+        name: 'Image',
+        value: image.url
+      });
 
-    // Envoi confession + logs après
+      logEmbed.setImage(image.url);
+    }
+
+    await interaction.reply({
+      content: '✅ Confession envoyée anonymement',
+      ephemeral: true
+    });
+
+    // ENVOI CONFESSION
     try {
       const confessionChannel = await interaction.client.channels.fetch(serverConfig.confession);
-      await confessionChannel.send({ embeds: [confessEmbed] });
+
+      await confessionChannel.send({
+        embeds: [confessEmbed]
+      });
+
     } catch (err) {
-      console.error("Erreur envoi confession:", err);
+      console.error("Erreur confession:", err);
     }
 
     try {
       const logsChannel = await interaction.client.channels.fetch(serverConfig.logs);
-      await logsChannel.send({ embeds: [logEmbed] });
+
+      await logsChannel.send({
+        embeds: [logEmbed]
+      });
+
     } catch (err) {
-      console.error("Erreur envoi logs:", err);
+      console.error("Erreur logs:", err);
     }
   }
 });
